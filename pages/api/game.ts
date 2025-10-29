@@ -1,152 +1,86 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-
-interface GameState {
-  board: (string | null)[];
-  isXNext: boolean;
-  winner: string | null;
-  players: Array<{ id: string; symbol: string }>;
-}
-
-interface GameRoom {
-  board: (string | null)[];
-  isXNext: boolean;
-  winner: string | null;
-  players: Map<string, string>;
-}
-
-const games = new Map<string, GameRoom>();
-
-function calculateWinner(squares: (string | null)[]): string | null {
-  const lines = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [0, 3, 6],
-    [1, 4, 7],
-    [2, 5, 8],
-    [0, 4, 8],
-    [2, 4, 6],
-  ];
-
-  for (const [a, b, c] of lines) {
-    if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-      return squares[a];
-    }
-  }
-  return null;
-}
-
-function getGameState(game: GameRoom): GameState {
-  return {
-    board: game.board,
-    isXNext: game.isXNext,
-    winner: game.winner,
-    players: Array.from(game.players.entries()).map(([id, symbol]) => ({ id, symbol })),
-  };
-}
+import { getGameStateManager } from '../../lib/gameState';
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
+  const gameManager = getGameStateManager();
+
   if (req.method === 'POST') {
-    const { action, roomId, playerId, symbol, index } = req.body;
+    const { action, roomId, playerId, index } = req.body;
 
     if (action === 'create') {
-      const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const newPlayerId = Math.random().toString(36).substring(2, 10);
-
-      games.set(newRoomId, {
-        board: Array(9).fill(null),
-        isXNext: true,
-        winner: null,
-        players: new Map([[newPlayerId, 'X']]),
-      });
+      const newRoomId = gameManager.createRoom();
+      const room = gameManager.getRoom(newRoomId);
+      const newPlayerId = Array.from(room!.players.keys())[0];
 
       return res.json({
         success: true,
         roomId: newRoomId,
         playerId: newPlayerId,
         symbol: 'X',
-        state: getGameState(games.get(newRoomId)!),
+        state: gameManager.getGameState(newRoomId),
       });
     }
 
     if (action === 'join') {
-      const game = games.get(roomId);
+      const game = gameManager.getRoom(roomId);
       if (!game) {
-        return res.status(404).json({ success: false, error: 'Room not found' });
+        return res.json({ success: false, error: 'Room not found' });
       }
 
       if (game.players.size >= 2) {
         return res.json({ success: false, error: 'Room is full' });
       }
 
-      const newPlayerId = Math.random().toString(36).substring(2, 10);
-      const newSymbol = game.players.size === 0 ? 'X' : 'O';
-      game.players.set(newPlayerId, newSymbol);
+      const newPlayerId = gameManager.joinRoom(roomId);
+      if (!newPlayerId) {
+        return res.json({ success: false, error: 'Failed to join room' });
+      }
+
+      const updatedGame = gameManager.getRoom(roomId)!;
+      const symbol = updatedGame.players.get(newPlayerId);
 
       return res.json({
         success: true,
         roomId,
         playerId: newPlayerId,
-        symbol: newSymbol,
-        state: getGameState(game),
+        symbol,
+        state: gameManager.getGameState(roomId),
       });
     }
 
     if (action === 'move') {
-      const game = games.get(roomId);
-      if (!game) {
-        return res.status(404).json({ success: false, error: 'Room not found' });
+      const success = gameManager.makeMove(roomId, playerId, index);
+      if (!success) {
+        return res.json({ success: false, error: 'Invalid move' });
       }
-
-      const playerSymbol = game.players.get(playerId);
-      if (!playerSymbol) {
-        return res.status(403).json({ success: false, error: 'Not a player in this room' });
-      }
-
-      if (game.board[index] !== null) {
-        return res.json({ success: false, error: 'Square already filled' });
-      }
-
-      const expectedSymbol = game.isXNext ? 'X' : 'O';
-      if (playerSymbol !== expectedSymbol) {
-        return res.json({ success: false, error: 'Not your turn' });
-      }
-
-      game.board[index] = expectedSymbol;
-      game.winner = calculateWinner(game.board);
-      game.isXNext = !game.isXNext;
 
       return res.json({
         success: true,
-        state: getGameState(game),
+        state: gameManager.getGameState(roomId),
       });
     }
 
     if (action === 'reset') {
-      const game = games.get(roomId);
-      if (!game) {
-        return res.status(404).json({ success: false, error: 'Room not found' });
+      const success = gameManager.resetGame(roomId);
+      if (!success) {
+        return res.json({ success: false, error: 'Room not found' });
       }
-
-      game.board = Array(9).fill(null);
-      game.isXNext = true;
-      game.winner = null;
 
       return res.json({
         success: true,
-        state: getGameState(game),
+        state: gameManager.getGameState(roomId),
       });
     }
 
     if (action === 'getState') {
-      const game = games.get(roomId);
-      if (!game) {
-        return res.status(404).json({ success: false, error: 'Room not found' });
+      const state = gameManager.getGameState(roomId);
+      if (!state) {
+        return res.json({ success: false, error: 'Room not found' });
       }
 
       return res.json({
         success: true,
-        state: getGameState(game),
+        state,
       });
     }
   }

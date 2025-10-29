@@ -30,7 +30,7 @@ export default function PollingTicTacToe() {
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch('/api/game', {
+        const res = await fetch('/api/gamedb', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'getState', roomId }),
@@ -49,7 +49,7 @@ export default function PollingTicTacToe() {
 
   const createRoom = async () => {
     try {
-      const res = await fetch('/api/game', {
+      const res = await fetch('/api/gamedb', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'create' }),
@@ -73,7 +73,7 @@ export default function PollingTicTacToe() {
       return;
     }
     try {
-      const res = await fetch('/api/game', {
+      const res = await fetch('/api/gamedb', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'join', roomId: inputRoomId.toUpperCase() }),
@@ -106,7 +106,7 @@ export default function PollingTicTacToe() {
     }
 
     try {
-      const res = await fetch('/api/game', {
+      const res = await fetch('/api/gamedb', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'move', roomId, playerId, index }),
@@ -126,7 +126,7 @@ export default function PollingTicTacToe() {
   const resetGame = async () => {
     if (!roomId) return;
     try {
-      const res = await fetch('/api/game', {
+      const res = await fetch('/api/gamedb', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'reset', roomId }),
