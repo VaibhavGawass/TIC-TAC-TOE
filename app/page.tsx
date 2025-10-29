@@ -1,5 +1,5 @@
-import MultiplayerTicTacToe from './components/MultiplayerTicTacToeVercel';
+import PollingTicTacToe from './components/PollingTicTacToe';
 
 export default function Home() {
-  return <MultiplayerTicTacToe />;
+  return <PollingTicTacToe />;
 }
