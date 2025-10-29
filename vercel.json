@@ -6,8 +6,5 @@
       "memory": 1024,
       "maxDuration": 60
     }
-  },
-  "env": {
-    "NEXTAUTH_URL": "@nextauth_url"
   }
 }
