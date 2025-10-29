@@ -1,6 +1,5 @@
 import { Server } from 'socket.io';
 
-// Store active games
 const games = new Map();
 const playerToRoom = new Map();
 
@@ -37,7 +36,6 @@ class Game {
 
   makeMove(index, playerId) {
     if (this.board[index] !== null) return { success: false, error: 'Square already filled' };
-
     const player = this.players.get(playerId);
     if (!player) return { success: false, error: 'Player not found' };
 
@@ -49,7 +47,6 @@ class Game {
     this.board[index] = expectedSymbol;
     this.winner = this.calculateWinner(this.board);
     this.isXNext = !this.isXNext;
-
     return { success: true };
   }
 
@@ -65,41 +62,37 @@ class Game {
       })),
     };
   }
-
-  broadcast(io, message) {
-    const room = this.roomId;
-    io.to(room).emit('game_update', message);
-  }
 }
 
 export default function SocketHandler(req, res) {
   if (res.socket.server.io) {
-    console.log('Socket.io already attached');
+    console.log('Socket.io already running');
     res.end();
     return;
   }
 
+  console.log('Starting Socket.io server');
   const io = new Server(res.socket.server, {
-    cors: { origin: '*' },
+    cors: { origin: '*', methods: ['GET', 'POST'] },
     transports: ['websocket', 'polling'],
+    path: '/api/socket',
   });
 
   res.socket.server.io = io;
 
   io.on('connection', (socket) => {
-    console.log('Client connected:', socket.id);
+    console.log('New connection:', socket.id);
     let currentRoom = null;
-    let playerId = socket.id;
+    const playerId = socket.id;
 
     socket.on('create_room', () => {
+      console.log('create_room event received');
       const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
       const game = new Game(roomId);
-
       game.players.set(playerId, { symbol: 'X' });
       games.set(roomId, game);
       playerToRoom.set(playerId, roomId);
       currentRoom = roomId;
-
       socket.join(roomId);
 
       socket.emit('room_created', {
@@ -114,6 +107,7 @@ export default function SocketHandler(req, res) {
     });
 
     socket.on('join_room', ({ roomId }) => {
+      console.log('join_room:', roomId);
       const game = games.get(roomId);
 
       if (!game) {
@@ -125,9 +119,6 @@ export default function SocketHandler(req, res) {
 
       if (game.players.size >= 2) {
         game.spectators.add(socket.id);
-        playerToRoom.set(playerId, roomId);
-        currentRoom = roomId;
-
         socket.emit('room_joined', {
           type: 'room_joined',
           role: 'spectator',
@@ -138,9 +129,7 @@ export default function SocketHandler(req, res) {
       } else {
         const symbol = game.players.size === 0 ? 'X' : 'O';
         game.players.set(playerId, { symbol });
-        playerToRoom.set(playerId, roomId);
         currentRoom = roomId;
-
         socket.emit('room_joined', {
           type: 'room_joined',
           role: 'player',
@@ -155,8 +144,6 @@ export default function SocketHandler(req, res) {
           state: game.getState(),
         });
       }
-
-      console.log('Player joined room:', roomId);
     });
 
     socket.on('move', ({ index }) => {
@@ -170,10 +157,7 @@ export default function SocketHandler(req, res) {
           state: game.getState(),
         });
       } else {
-        socket.emit('error', {
-          type: 'error',
-          error: result.error,
-        });
+        socket.emit('error', { type: 'error', error: result.error });
       }
     });
 
@@ -209,7 +193,6 @@ export default function SocketHandler(req, res) {
         }
       }
       playerToRoom.delete(playerId);
-      console.log('Client disconnected:', socket.id);
     });
   });
 
